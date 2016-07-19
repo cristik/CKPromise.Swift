@@ -2,7 +2,7 @@
 
 # CKPromise.Swift
 
-An Swift attempt to implement the Promises/A+ proposal, with full support for generics, to be able to benefit of Swifts strong type system. Full specs can be found at http://promisesaplus.com/.
+A Swift attempt to implement the Promises/A+ proposal, with full support for generics, to be able to benefit of Swifts strong type system. Full specs can be found at http://promisesaplus.com/.
 
 The implementation tries to follow the Promise/A+ specs as much as possible, however due to the stong type system of Swift not all could be followed.
 
@@ -26,7 +26,7 @@ Let's see the promises in action. Let's begin with a simple task - sending a
 `NSURLSession` request and parsing the received data into a dictionary.
 
 Firstly, let's extend `NSURLSession` and `NSData` with promises support for
-sending a request, and parsing a JSON:
+sending a request, respectively parsing a JSON:
 
 ```swift
 extension NSURLSession {
@@ -66,26 +66,25 @@ extension NSData {
     }
 }
 ```
-which we can use as follows:
+We can use teh above extensions as follows:
 ```swift
-    let request = NSURLRequest(URL: NSURL(string: "https://jsonplaceholder.typicode.com/posts/1")!)
-    NSURLSession.sharedSession().sendRequest(request).onSuccess({
-        return $0.parseJSON()
-    }).onSuccess( {
-        print("Parsed JSON: \($0)")
-    }).onFailure( {
-        print("Failed with error: \($0)")
-    })
+let request = NSURLRequest(URL: NSURL(string: "https://jsonplaceholder.typicode.com/posts/1")!)
+NSURLSession.sharedSession().sendRequest(request).onSuccess({
+    return $0.parseJSON()
+}).onSuccess( {
+    print("Parsed JSON: \($0)")
+}).onFailure( {
+    print("Failed with error: \($0)")
+})
 ```
 The success callbacks of the `sendRequest` promise returns another promise, a
 JSON parsing one, which enables us to nicely chain promises.
-If any of the two promises fail, the executino will go straight to the last
+If any of the two promises fail, the execution will go straight to the last
 failure handler, which helps us as we don't have to write multiple failure
 handlers.
 
-This doesn't seems much, so let's add another step: creating a `Post` object from
-the parsed dictionary.
-Here's a possible implementation of `Post` in regards to promises:
+This doesn't seems much, so let's add another step: creating a `Post` entity from
+the parsed dictionary. Here's a possible implementation of `Post` in regards to promises:
 ```swift
 struct Post {
     private(set) var id: Int = 0
@@ -113,7 +112,7 @@ struct Post {
 }
 ```
 Basically we've added support for creating a `Post` from a dictionary in a 
-promish way. How we'd make use of this? Well, simple enough:
+promise-ish way. How we'd make use of this? Well, simple enough:
 ```swift
 let request = NSURLRequest(URL: NSURL(string: "https://jsonplaceholder.typicode.com/posts/1")!)
 NSURLSession.sharedSession().sendRequest(request).onSuccess({
@@ -151,7 +150,7 @@ extension NSURLSession {
 ```
 Now, most of the times we'll be sending http requests and it will be nice if we
 could make use of the `NSHTTPURLResponse` subclass without having to resort to
-downcasting. Something along the lines:
+downcasting in the callbacks. Something along the lines:
 ```swift
 func sendHTTPRequest(request: NSURLRequest) -> Promise<(NSHTTPURLResponse, NSData),NSError>
 ```
@@ -180,11 +179,12 @@ extension NSURLSession {
 }
 ```
 Just as simple as that, thanks to the generics support.
+
 But wait, what if the url request doesn't correspond to a http request? We might
 want to fail fast in this case, and not even send the request, instead of failing
-at the downcast step after receiving the server response. Well, as you guessed,
-that's also not hard at all:
-
+at the downcast step after receiving the server response. Well, as you might
+have guessed, that's also not hard at all:
+```swift
 func sendHTTPRequest(request: NSURLRequest) -> Promise<(NSHTTPURLResponse, NSData),NSError> {
     guard ["http", "https"].contains(request.url.scheme) else {
         return Promise.rejected(NSError.invalidRequestError())
@@ -195,7 +195,7 @@ func sendHTTPRequest(request: NSURLRequest) -> Promise<(NSHTTPURLResponse, NSDat
 
 Another common case for promises is recovering from failures. A contrived
 example would be a failed POST on a resource to be retried by a PUT in case of
-a failure. How would an scenario like this be implemented:
+a failure. This is how would a scenario like this would be implemented:
 ```swift
 let postRequest = NSURLRequest(...)
 let putRequest = NSURLRequest(...)
@@ -210,4 +210,4 @@ NSURLSession.sharedSession().sendRequest(postRequest).onFailure({
 })
 ```
 Again, the promises allow us to declare the data processing in a linear flow, I'd
-day in a more natural one.
+ay in a more natural one.
