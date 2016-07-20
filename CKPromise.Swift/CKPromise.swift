@@ -73,9 +73,18 @@ public final class Promise<S, E> {
         registerFailure({ promise2.reject($0) })
         return promise2
     }
+       
+    /// Registers a failure callback. The returned promise gets resolved with
+    /// the value returned by the callback
+    public func onFailure(failure: (E) -> S) -> Promise<S,E> {
+        let promise2 = Promise<S,E>()
+        registerSuccess({ promise2.resolve($0) })
+        registerFailure({ promise2.resolve(failure($0)) })
+        return promise2
+    }
     
-    /// Registers a failure callback. This doesn't return a promise, and is
-    // useful to end a promise chain
+    /// Registers a failure callback. The returned promise gets resolved with
+    /// the value returned by the callback
     public func onFailure(failure: (E) -> Promise<S,E>) -> Promise<S,E> {
         let promise2 = Promise<S,E>()
         registerSuccess({ promise2.resolve($0) })
@@ -84,7 +93,7 @@ public final class Promise<S, E> {
     }
     
     /// Registers a failure callback. This doesn't return a promise, and is
-    // useful to end a promise chain
+    /// useful to end a promise chain
     public func onFailure(failure: (E) -> Void)  {
         registerFailure(failure)
     }
