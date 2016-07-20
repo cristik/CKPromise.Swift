@@ -14,11 +14,14 @@ import Dispatch
 /// the reason why the promise cannot be fulfilled.
 public final class Promise<S, E> {
     internal var state: PromiseState<S,E> = .pending
+    private let privQueue: dispatch_queue_t
     private var successHandlers: [(S) -> Void] = []
     private var failureHandlers: [(E) -> Void] = []
     
     /// Creates a pending promise
-    public required init() {}
+    public required init() {
+        privQueue = dispatch_queue_create("", DISPATCH_QUEUE_SERIAL)
+    }
     
     /// Creates a fulfilled promise
     public class func fulfilled(value: S) -> Promise{
@@ -42,8 +45,10 @@ public final class Promise<S, E> {
     /// success/failure callback
     public func on<V>(success success: (S) -> V, failure: (E) -> V) -> Promise<V,E> {
         let promise2 = Promise<V,E>()
-        registerSuccess({ promise2.resolve(success($0)) })
-        registerFailure({ promise2.resolve(failure($0)) })
+        dispatch_sync(privQueue) {[unowned self] in
+            self.registerSuccess({ promise2.resolve(success($0)) })
+            self.registerFailure({ promise2.resolve(failure($0)) })
+        }
         return promise2
     }
     
@@ -51,8 +56,10 @@ public final class Promise<S, E> {
     /// success/failure callback.
     public func on<V>(success success: (S) -> Promise<V,E>, failure: (E) -> Promise<V,E>) -> Promise<V,E> {
         let promise2 = Promise<V,E>()
-        registerSuccess({ promise2.resolve(success($0)) })
-        registerFailure({ promise2.resolve(failure($0)) })
+        dispatch_sync(privQueue) {[unowned self] in
+            self.registerSuccess({ promise2.resolve(success($0)) })
+            self.registerFailure({ promise2.resolve(failure($0)) })
+        }
         return promise2
     }
     
@@ -60,8 +67,10 @@ public final class Promise<S, E> {
     /// success callback
     public func onSuccess<V>(success: (S) -> V) -> Promise<V,E> {
         let promise2 = Promise<V,E>()
-        registerSuccess({ promise2.resolve(success($0)) })
-        registerFailure({ promise2.reject($0) })
+        dispatch_sync(privQueue) {[unowned self] in
+            self.registerSuccess({ promise2.resolve(success($0)) })
+            self.registerFailure({ promise2.reject($0) })
+        }
         return promise2
     }
     
@@ -69,8 +78,10 @@ public final class Promise<S, E> {
     /// success callback
     public func onSuccess<V>(success: (S) -> Promise<V,E>) -> Promise<V,E> {
         let promise2 = Promise<V,E>()
-        registerSuccess({ promise2.resolve(success($0)) })
-        registerFailure({ promise2.reject($0) })
+        dispatch_sync(privQueue) {[unowned self] in
+            self.registerSuccess({ promise2.resolve(success($0)) })
+            self.registerFailure({ promise2.reject($0) })
+        }
         return promise2
     }
        
@@ -78,8 +89,10 @@ public final class Promise<S, E> {
     /// the value returned by the callback
     public func onFailure(failure: (E) -> S) -> Promise<S,E> {
         let promise2 = Promise<S,E>()
-        registerSuccess({ promise2.resolve($0) })
-        registerFailure({ promise2.resolve(failure($0)) })
+        dispatch_sync(privQueue) {[unowned self] in
+            self.registerSuccess({ promise2.resolve($0) })
+            self.registerFailure({ promise2.resolve(failure($0)) })
+        }
         return promise2
     }
     
@@ -87,8 +100,10 @@ public final class Promise<S, E> {
     /// the value returned by the callback
     public func onFailure(failure: (E) -> Promise<S,E>) -> Promise<S,E> {
         let promise2 = Promise<S,E>()
-        registerSuccess({ promise2.resolve($0) })
-        registerFailure({ promise2.resolve(failure($0)) })
+        dispatch_sync(privQueue) {[unowned self] in
+            self.registerSuccess({ promise2.resolve($0) })
+            self.registerFailure({ promise2.resolve(failure($0)) })
+        }
         return promise2
     }
     
@@ -98,10 +113,10 @@ public final class Promise<S, E> {
         guard case .pending = state else {
             return
         }
-        state = .fulfilled(value)
-        dispatch(value) {
+        dispatch_sync(privQueue) {[unowned self] in
+            self.state = .fulfilled(value)
             for handler in self.successHandlers {
-                handler($0)
+                self.dispatch(value, handler)
             }
             self.successHandlers.removeAll()
             self.failureHandlers.removeAll()
@@ -117,8 +132,10 @@ public final class Promise<S, E> {
         if  promise === self {
             return
         }
-        promise.registerSuccess({ self.resolve($0) })
-        promise.registerFailure({ self.reject($0) })
+        dispatch_sync(privQueue) {[unowned self] in
+            promise.registerSuccess({ self.resolve($0) })
+            promise.registerFailure({ self.reject($0) })
+        }
     }
     
     /// Rejects the promise with the given reason. Executes all registered
@@ -127,10 +144,10 @@ public final class Promise<S, E> {
         guard case .pending = state else {
             return
         }
-        state = .rejected(reason)
-        dispatch(reason) {
+        dispatch_sync(privQueue) {[unowned self] in
+            self.state = .rejected(reason)
             for handler in self.failureHandlers {
-                handler($0)
+                self.dispatch(reason, handler)
             }
             self.successHandlers.removeAll()
             self.failureHandlers.removeAll()
