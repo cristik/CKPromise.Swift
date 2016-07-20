@@ -92,12 +92,6 @@ public final class Promise<S, E> {
         return promise2
     }
     
-    /// Registers a failure callback. This doesn't return a promise, and is
-    /// useful to end a promise chain
-    public func onFailure(failure: (E) -> Void)  {
-        registerFailure(failure)
-    }
-    
     /// Resolves the promise with the given value. Executes all registered  
     /// callbacks, in the order they were scheduled
     public func resolve(value: S) {
