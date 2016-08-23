@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
 
 s.name            = 'CKPromise.Swift'
-s.version         = '0.2'
+s.version         = '0.3'
 s.summary         = 'Swift attemp to implement Promise/A+'
 s.homepage        = 'https://github.com/cristik/CKPromise.Swift'
 s.source          = { :git => 'https://github.com/cristik/CKPromise.Swift.git', :tag => s.version.to_s }

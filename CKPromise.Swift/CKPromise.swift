@@ -14,17 +14,17 @@ import Dispatch
 /// the reason why the promise cannot be fulfilled.
 public final class Promise<S, E> {
     internal var state: PromiseState<S,E> = .pending
-    private let privQueue: dispatch_queue_t
+    private let privQueue: DispatchQueue
     private var successHandlers: [(S) -> Void] = []
     private var failureHandlers: [(E) -> Void] = []
     
     /// Creates a pending promise
     public required init() {
-        privQueue = dispatch_queue_create("", DISPATCH_QUEUE_SERIAL)
+        privQueue = DispatchQueue(label: "CKPromise.Swift")
     }
     
     /// Creates a fulfilled promise
-    public class func fulfilled(value: S) -> Promise{
+    public class func fulfilled(value: S) -> Promise {
         let promise = Promise()
         promise.resolve(value)
         return promise
@@ -37,125 +37,6 @@ public final class Promise<S, E> {
         return promise
     }
     
-    /// This is the `then` method. It allows clients to observe the promise's
-    /// result - either success or failure.
-    /// The success/failure handlers are dispatched on the main thread, in an
-    /// async manner, thus after the current runloop cycle ends
-    /// Returns a promise that gets fulfilled with the result of the 
-    /// success/failure callback
-    public func on<V>(success success: (S) -> V, failure: (E) -> V) -> Promise<V,E> {
-        let promise2 = Promise<V,E>()
-        dispatch_sync(privQueue) {[unowned self] in
-            self.registerSuccess({ promise2.resolve(success($0)) })
-            self.registerFailure({ promise2.resolve(failure($0)) })
-        }
-        return promise2
-    }
-    
-    /// Returns a promise that gets fulfilled with the result of the
-    /// success/failure callback.
-    public func on<V>(success success: (S) -> Promise<V,E>, failure: (E) -> Promise<V,E>) -> Promise<V,E> {
-        let promise2 = Promise<V,E>()
-        dispatch_sync(privQueue) {[unowned self] in
-            self.registerSuccess({ promise2.resolve(success($0)) })
-            self.registerFailure({ promise2.resolve(failure($0)) })
-        }
-        return promise2
-    }
-    
-    /// Returns a promise that gets fulfilled with the result of the
-    /// success callback
-    public func onSuccess<V>(success: (S) -> V) -> Promise<V,E> {
-        let promise2 = Promise<V,E>()
-        dispatch_sync(privQueue) {[unowned self] in
-            self.registerSuccess({ promise2.resolve(success($0)) })
-            self.registerFailure({ promise2.reject($0) })
-        }
-        return promise2
-    }
-    
-    /// Returns a promise that gets fulfilled with the result of the
-    /// success callback
-    public func onSuccess<V>(success: (S) -> Promise<V,E>) -> Promise<V,E> {
-        let promise2 = Promise<V,E>()
-        dispatch_sync(privQueue) {[unowned self] in
-            self.registerSuccess({ promise2.resolve(success($0)) })
-            self.registerFailure({ promise2.reject($0) })
-        }
-        return promise2
-    }
-       
-    /// Registers a failure callback. The returned promise gets resolved with
-    /// the value returned by the callback
-    public func onFailure(failure: (E) -> S) -> Promise<S,E> {
-        let promise2 = Promise<S,E>()
-        dispatch_sync(privQueue) {[unowned self] in
-            self.registerSuccess({ promise2.resolve($0) })
-            self.registerFailure({ promise2.resolve(failure($0)) })
-        }
-        return promise2
-    }
-    
-    /// Registers a failure callback. The returned promise gets resolved with
-    /// the value returned by the callback
-    public func onFailure(failure: (E) -> Promise<S,E>) -> Promise<S,E> {
-        let promise2 = Promise<S,E>()
-        dispatch_sync(privQueue) {[unowned self] in
-            self.registerSuccess({ promise2.resolve($0) })
-            self.registerFailure({ promise2.resolve(failure($0)) })
-        }
-        return promise2
-    }
-    
-    /// Resolves the promise with the given value. Executes all registered  
-    /// callbacks, in the order they were scheduled
-    public func resolve(value: S) {
-        guard case .pending = state else {
-            return
-        }
-        dispatch_sync(privQueue) {[unowned self] in
-            self.state = .fulfilled(value)
-            for handler in self.successHandlers {
-                self.dispatch(value, handler)
-            }
-            self.successHandlers.removeAll()
-            self.failureHandlers.removeAll()
-        }
-    }
-    
-    /// Resolves the promise with the given promise. This makes the receiver
-    // take the state of the given promise
-    public func resolve(promise: Promise<S,E>) {
-        guard case .pending = state else {
-            return
-        }
-        if  promise === self {
-            return
-        }
-        dispatch_sync(privQueue) {[unowned self] in
-            promise.registerSuccess({ self.resolve($0) })
-            promise.registerFailure({ self.reject($0) })
-        }
-    }
-    
-    /// Rejects the promise with the given reason. Executes all registered
-    /// failure callbacks, in the order they were scheduled
-    public func reject(reason: E) {
-        guard case .pending = state else {
-            return
-        }
-        dispatch_sync(privQueue) {[unowned self] in
-            self.state = .rejected(reason)
-            for handler in self.failureHandlers {
-                self.dispatch(reason, handler)
-            }
-            self.successHandlers.removeAll()
-            self.failureHandlers.removeAll()
-        }
-    }
-}
-
-extension Promise {
     /// Returns a promise that waits for the gived promises to either success
     /// or fail. Reports success if at least one of the promises succeeded, and
     /// failure if all of them failed.
@@ -174,23 +55,165 @@ extension Promise {
             }
         }
         for promise in promises {
-            promise.registerSuccess({
+            promise.registerSuccess {
                 remainingPromises -= 1
                 values.append($0);
                 check()
-            })
-            promise.registerFailure({
+            }
+            promise.registerFailure {
                 remainingPromises -= 1
                 errors.append($0);
                 check()
-            })
+            }
         }
         return promise2
     }
-}
+    
+    /// This is the `then` method. It allows clients to observe the promise's
+    /// result - either success or failure.
+    /// The success/failure handlers are dispatched on the main thread, in an
+    /// async manner, thus after the current runloop cycle ends
+    /// Returns a promise that gets fulfilled with the result of the 
+    /// success/failure callback
+    @discardableResult
+    public func on<V>(success: @escaping (S) -> V, failure: @escaping (E) -> V) -> Promise<V,E> {
+        let promise2 = Promise<V,E>()
+        privQueue.sync {[unowned self] in
+            self.registerSuccess { promise2.resolve(success($0)) }
+            self.registerFailure { promise2.resolve(failure($0)) }
+        }
+        return promise2
+    }
+    
+    @discardableResult
+    public func on<V>(success: @escaping (S) -> Promise<V,E>, failure: @escaping (E) -> V) -> Promise<V,E> {
+        let promise2 = Promise<V,E>()
+        privQueue.sync { [unowned self] in
+            self.registerSuccess { promise2.resolve(success($0)) }
+            self.registerFailure { promise2.resolve(failure($0)) }
+        }
+        return promise2
+    }
+    
+    @discardableResult
+    public func on<V>(success: @escaping (S) -> V, failure: @escaping (E) -> Promise<V,E>) -> Promise<V,E> {
+        let promise2 = Promise<V,E>()
+        privQueue.sync {[unowned self] in
+            self.registerSuccess { promise2.resolve(success($0)) }
+            self.registerFailure { promise2.resolve(failure($0)) }
+        }
+        return promise2
+    }
+    
+    /// Returns a promise that gets fulfilled with the result of the
+    /// success/failure callback.
+    @discardableResult
+    public func on<V>(success: @escaping (S) -> Promise<V,E>, failure: @escaping (E) -> Promise<V,E>) -> Promise<V,E> {
+        let promise2 = Promise<V,E>()
+        privQueue.sync { [unowned self] in
+            self.registerSuccess { promise2.resolve(success($0)) }
+            self.registerFailure { promise2.resolve(failure($0)) }
+        }
+        return promise2
+    }
+    
+    /// Returns a promise that gets fulfilled with the result of the
+    /// success callback
+    @discardableResult
+    public func onSuccess<V>(success: @escaping (S) -> V) -> Promise<V,E> {
+        let promise2 = Promise<V,E>()
+        privQueue.sync { [unowned self] in
+            self.registerSuccess { promise2.resolve(success($0)) }
+            self.registerFailure { promise2.reject($0) }
+        }
+        return promise2
+    }
+    
+    /// Returns a promise that gets fulfilled with the result of the
+    /// success callback
+    @discardableResult
+    public func onSuccess<V>(success: @escaping (S) -> Promise<V,E>) -> Promise<V,E> {
+        let promise2 = Promise<V,E>()
+        privQueue.sync { [unowned self] in
+            self.registerSuccess { promise2.resolve(success($0)) }
+            self.registerFailure { promise2.reject($0) }
+        }
+        return promise2
+    }
+       
+    /// Registers a failure callback. The returned promise gets resolved with
+    /// the value returned by the callback
+    public func onFailure(failure: @escaping (E) -> S) -> Promise<S,E> {
+        let promise2 = Promise<S,E>()
+        privQueue.sync { [unowned self] in
+            self.registerSuccess { promise2.resolve($0) }
+            self.registerFailure { promise2.resolve(failure($0)) }
+        }
+        return promise2
+    }
+    
+    /// Registers a failure callback. The returned promise gets resolved with
+    /// the value returned by the callback
+    @discardableResult
+    public func onFailure(failure: @escaping (E) -> Promise<S,E>) -> Promise<S,E> {
+        let promise2 = Promise<S,E>()
+        privQueue.sync { [unowned self] in
+            self.registerSuccess { promise2.resolve($0) }
+            self.registerFailure { promise2.resolve(failure($0)) }
+        }
+        return promise2
+    }
+    
+    /// Registers a failure callback. Returns nothing, this is an helper to be
+    // used at the end of promise chains
+    @discardableResult
+    public func onFailure(failure: @escaping (E) -> Void) {
+        privQueue.sync { [unowned self] in
+            self.registerFailure { failure($0) }
+        }
+    }
+       
+    /// Resolves the promise with the given value. Executes all registered  
+    /// callbacks, in the order they were scheduled
+    public func resolve(_ value: S) {
+        privQueue.sync { [unowned self] in
+            guard case .pending = self.state else { return }
 
-extension Promise {
-    private func registerSuccess(handler: (S)->Void) {
+            self.state = .fulfilled(value)
+            for handler in self.successHandlers {
+                self.dispatch(value, handler)
+            }
+            self.successHandlers.removeAll()
+            self.failureHandlers.removeAll()
+        }
+    }
+    
+    /// Resolves the promise with the given promise. This makes the receiver
+    // take the state of the given promise
+    public func resolve(_ promise: Promise<S,E>) {
+        privQueue.sync { [unowned self] in
+            guard case .pending = self.state, promise !== self else { return }
+
+            promise.registerSuccess { self.resolve($0) }
+            promise.registerFailure { self.reject($0) }
+        }
+    }
+    
+    /// Rejects the promise with the given reason. Executes all registered
+    /// failure callbacks, in the order they were scheduled
+    public func reject(_ reason: E) {
+        privQueue.sync { [unowned self] in
+            guard case .pending = self.state else { return }
+            self.state = .rejected(reason)
+            for handler in self.failureHandlers {
+                self.dispatch(reason, handler)
+            }
+            self.successHandlers.removeAll()
+            self.failureHandlers.removeAll()
+        }
+    }
+    
+    private func registerSuccess(handler: @escaping (S)->Void) {
         switch state {
         case .pending: successHandlers.append(handler)
         case .fulfilled(let value): dispatch(value, handler)
@@ -198,7 +221,7 @@ extension Promise {
         }
     }
     
-    private func registerFailure(handler: (E)->Void) {
+    private func registerFailure(handler: @escaping (E)->Void) {
         switch state {
         case .pending: failureHandlers.append(handler)
         case .fulfilled: break
@@ -207,8 +230,8 @@ extension Promise {
     }
     
     
-    private func dispatch<T>(arg: T, _ handler: (T) -> Void) {
-        dispatch_async(dispatch_get_main_queue()) {
+    private func dispatch<T>(_ arg: T, _ handler: @escaping (T) -> Void) {
+        DispatchQueue.main.async {
             handler(arg)
         }
     }

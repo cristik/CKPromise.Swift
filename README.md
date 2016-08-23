@@ -2,6 +2,8 @@
 
 # CKPromise.Swift
 
+Note. Works in Swift 3 and above only.
+
 A Swift attempt to implement the Promises/A+ proposal, with full support for generics, to be able to benefit of Swifts strong type system. Full specs can be found at http://promisesaplus.com/.
 
 The implementation tries to follow the Promise/A+ specs as much as possible, however due to the stong type system of Swift not all could be followed.
@@ -210,4 +212,4 @@ NSURLSession.sharedSession().sendRequest(postRequest).onFailure({
 })
 ```
 Again, the promises allow us to declare the data processing in a linear flow, I'd
-ay in a more natural one.
+say in a more natural one.
