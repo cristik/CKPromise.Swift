@@ -5,4 +5,4 @@ osx_image: xcode8
 
 script:
 - set -o pipefail
-- xcodebuild test -project CKPromise.Swift.xcodeproj -scheme CKPromise.swift | xcpretty
+- xcodebuild test -project CKPromise.Swift.xcodeproj -scheme CKPromise.Swift -sdk iphonesimulator | xcpretty
