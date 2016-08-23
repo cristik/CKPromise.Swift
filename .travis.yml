@@ -1,4 +1,7 @@
-language: objective-c
-xcode_project: CKPromise.Swift.xcodeproj
-xcode_scheme: CKPromise.Swift
+#language: objective-c
+#xcode_project: CKPromise.Swift.xcodeproj
+#xcode_scheme: CKPromise.Swift
 osx_image: xcode8
+
+script:
+- xcodebuild test -project CKPromise.Swift -scheme CKPromise.swift | xcpretty
