@@ -147,7 +147,7 @@ class CKPromiseTests: XCTestCase {
         let ex1 = expectation(description: "")
         let ex2 = expectation(description: "")
         let ex3 = expectation(description: "")
-        let _ = promise.onSuccess( success: { _ in
+        let _ = promise.onSuccess({ _ in
             order.append(1)
             ex1.fulfill()
         })

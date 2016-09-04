@@ -8,6 +8,50 @@
 
 import Foundation
 
+public func promisify<T>(_ call: () throws -> T) -> Promise<T, Error> {
+    let promise = Promise<T, Error>()
+    do {
+        promise.resolve(try call())
+    } catch let err {
+        promise.reject(err)
+    }
+    return promise
+}
+
+enum DictionaryExtractError: Error {
+    case keyNotFound, typeMismatch
+}
+
+protocol DictionaryInitializable {
+    static func from(dictionary: [NSObject:AnyObject]) throws -> Self
+}
+
+extension DictionaryInitializable {
+    static func from(dictionaries: [[NSObject:AnyObject]]) throws -> [Self] {
+        return try dictionaries.map { try from(dictionary: $0) }
+    }
+}
+
+extension Dictionary {
+    func extract<T>(_ key: Key) throws -> T {
+        guard let value = self[key] else { throw DictionaryExtractError.keyNotFound }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        return result
+    }
+    
+    func extract<T>(_ key: Key, defaultValue: T) throws -> T {
+        guard let value = self[key] else { return defaultValue }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        return result
+    }
+    
+    func extracto<T>(_ key: Key) throws -> T? {
+        guard let value = self[key] else { return nil }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        return result
+    }
+}
+
 public extension URLSession {
     /// Creates a promise that gets resolved if the request succeeds. A data task
     /// is used for the transfer.
@@ -16,14 +60,23 @@ public extension URLSession {
     /// - there is no received data
     /// - the url response could not be casted to the type passed as the generic argument
     func sendRequest<T: URLResponse>(request: URLRequest) -> Promise<(T, Data), Error> {
-        let promise = Promise<(T, Data), Error>()
+        return sendRequest(request: request, processor: { ($0 as! T, $1) })
+    }
+    
+    func sendRequest<R: URLResponse, V>(request: URLRequest, processor: @escaping (R, Data) throws -> V) -> Promise<V, Error> {
+        let promise = Promise<V, Error>()
         let task = self.dataTask(with: request) { data, urlResponse, error in
             if let error = error {
                 // we have an error, means the request failed, reject promise
                 promise.reject(error as NSError)
-            } else if let data = data, let urlResponse = urlResponse as? T {
-                // we don't have an error and we have data, resolve promise
-                promise.resolve((urlResponse, data))
+            } else if let data = data, let urlResponse = urlResponse as? R {
+                // we don't have an error and we have data, resolve promise with
+                // the processed value
+                do {
+                    promise.resolve(try processor(urlResponse, data))
+                } catch let err {
+                    promise.reject(err)
+                }
             } else {
                 // we have neither error, nor data, report a generic error
                 // another approach would have been to resolve the promise
@@ -40,29 +93,28 @@ public extension URLSession {
     /// without sending the actual requesst
     func sendHTTPRequest(request: URLRequest) -> Promise<(HTTPURLResponse, Data), Error> {
         guard let scheme = request.url?.scheme, ["http", "https"].contains(scheme) else {
-            return Promise.rejected(reason: NSError.invalidURLRequestError())
+            return Promise(rejectedWith: NSError.invalidURLRequestError())
         }
         return sendRequest(request: request)
     }
 }
 
 public extension Data {
+    
+    func parsedJSON<T>(to: T.Type) throws -> T {
+        return try parsedJSON()
+    }
+    
     /// Tries to parse the JSON represented by itself, and cast the parsed dat
     /// to the generic argument. If the parsing and casting succeed, the promise
     /// is marked as resolved, otherwise it's rejected
-    func parseJSON<T>() -> Promise<T, NSError> {
-        let promise = Promise<T, NSError>()
-        do {
-            let parsedJSON = try JSONSerialization.jsonObject(with: self as Data, options: [])
-            if let result = parsedJSON as? T {
-                promise.resolve(result)
-            } else {
-                promise.reject(NSError.castError(from: "\(type(of: parsedJSON))", to: "\(T.self)"))
-            }
-        } catch let err {
-            promise.reject(err as NSError)
+    func parsedJSON<T>() throws -> T {
+        let parsedJSON = try JSONSerialization.jsonObject(with: self as Data, options: [])
+        if let result = parsedJSON as? T {
+            return result
+        } else {
+            throw NSError.castError(from: "\(type(of: parsedJSON))", to: "\(T.self)")
         }
-        return promise
     }
 }
 
