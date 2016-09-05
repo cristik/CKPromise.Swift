@@ -18,40 +18,6 @@ public func promisify<T>(_ call: () throws -> T) -> Promise<T, Error> {
     return promise
 }
 
-enum DictionaryExtractError: Error {
-    case keyNotFound, typeMismatch
-}
-
-protocol DictionaryInitializable {
-    static func from(dictionary: [NSObject:AnyObject]) throws -> Self
-}
-
-extension DictionaryInitializable {
-    static func from(dictionaries: [[NSObject:AnyObject]]) throws -> [Self] {
-        return try dictionaries.map { try from(dictionary: $0) }
-    }
-}
-
-extension Dictionary {
-    func extract<T>(_ key: Key) throws -> T {
-        guard let value = self[key] else { throw DictionaryExtractError.keyNotFound }
-        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
-        return result
-    }
-    
-    func extract<T>(_ key: Key, defaultValue: T) throws -> T {
-        guard let value = self[key] else { return defaultValue }
-        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
-        return result
-    }
-    
-    func extracto<T>(_ key: Key) throws -> T? {
-        guard let value = self[key] else { return nil }
-        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
-        return result
-    }
-}
-
 public extension URLSession {
     /// Creates a promise that gets resolved if the request succeeds. A data task
     /// is used for the transfer.
@@ -135,5 +101,39 @@ public extension NSError {
     class func castError(from: String, to: String) -> NSError {
         return NSError(domain: "CastErrorDomain", code: -1, userInfo:[
             NSLocalizedDescriptionKey: "Cast faile: expected a \(to), received a \(from)"])
+    }
+}
+
+enum DictionaryExtractError: Error {
+    case keyNotFound, typeMismatch
+}
+
+protocol DictionaryInitializable {
+    static func from(dictionary: [NSObject:AnyObject]) throws -> Self
+}
+
+extension DictionaryInitializable {
+    static func from(dictionaries: [[NSObject:AnyObject]]) throws -> [Self] {
+        return try dictionaries.map { try from(dictionary: $0) }
+    }
+}
+
+extension Dictionary {
+    func extract<T>(_ key: Key) throws -> T {
+        guard let value = self[key] else { throw DictionaryExtractError.keyNotFound }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        return result
+    }
+    
+    func extract<T>(_ key: Key, defaultValue: T) throws -> T {
+        guard let value = self[key] else { return defaultValue }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        return result
+    }
+    
+    func extracto<T>(_ key: Key) throws -> T? {
+        guard let value = self[key] else { return nil }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        return result
     }
 }
