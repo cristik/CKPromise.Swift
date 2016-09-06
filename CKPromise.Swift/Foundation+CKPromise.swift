@@ -25,11 +25,11 @@ public extension URLSession {
     /// - an error occurred
     /// - there is no received data
     /// - the url response could not be casted to the type passed as the generic argument
-    func sendRequest<T: URLResponse>(request: URLRequest) -> Promise<(T, Data), Error> {
-        return sendRequest(request: request, processor: { ($0 as! T, $1) })
+    func send<T: URLResponse>(request: URLRequest) -> Promise<(T, Data), Error> {
+        return send(request: request, processor: { ($0 as! T, $1) })
     }
     
-    func sendRequest<R: URLResponse, V>(request: URLRequest, processor: @escaping (R, Data) throws -> V) -> Promise<V, Error> {
+    func send<R: URLResponse, V>(request: URLRequest, processor: @escaping (R, Data) throws -> V) -> Promise<V, Error> {
         let promise = Promise<V, Error>()
         let task = self.dataTask(with: request) { data, urlResponse, error in
             if let error = error {
@@ -57,11 +57,11 @@ public extension URLSession {
     /// Same as sendRequest(), but with a NSHTTPURLResponse
     /// Checks if the url schema is http/https, and if not it rejects the promise
     /// without sending the actual requesst
-    func sendHTTPRequest(request: URLRequest) -> Promise<(HTTPURLResponse, Data), Error> {
+    func sendHTTP(request: URLRequest) -> Promise<(HTTPURLResponse, Data), Error> {
         guard let scheme = request.url?.scheme, ["http", "https"].contains(scheme) else {
             return Promise(rejectedWith: NSError.invalidURLRequestError())
         }
-        return sendRequest(request: request)
+        return send(request: request)
     }
 }
 
@@ -108,17 +108,17 @@ enum DictionaryExtractError: Error {
     case keyNotFound, typeMismatch
 }
 
-protocol DictionaryInitializable {
+public protocol DictionaryInitializable {
     static func from(dictionary: [NSObject:AnyObject]) throws -> Self
 }
 
-extension DictionaryInitializable {
+public extension DictionaryInitializable {
     static func from(dictionaries: [[NSObject:AnyObject]]) throws -> [Self] {
         return try dictionaries.map { try from(dictionary: $0) }
     }
 }
 
-extension Dictionary {
+public extension Dictionary {
     func extract<T>(_ key: Key) throws -> T {
         guard let value = self[key] else { throw DictionaryExtractError.keyNotFound }
         guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
