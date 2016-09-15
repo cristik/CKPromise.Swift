@@ -14,13 +14,24 @@ import Dispatch
 /// the reason why the promise cannot be fulfilled.
 public final class Promise<S, E> {
     internal var state: PromiseState<S,E> = .pending
-    private let privQueue: DispatchQueue
+    private var mutex = pthread_mutex_t()
     private var successHandlers: [(S) -> Void] = []
     private var failureHandlers: [(E) -> Void] = []
     
     /// Creates a pending promise
     public required init() {
-        privQueue = DispatchQueue(label: "CKPromise.Swift")
+        var attr = pthread_mutexattr_t()
+        guard pthread_mutexattr_init(&attr) == 0 else {
+            preconditionFailure()
+        }
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL)
+        guard pthread_mutex_init(&mutex, &attr) == 0 else {
+            preconditionFailure()
+        }
+    }
+    
+    deinit {
+        pthread_mutex_destroy(&mutex)
     }
     
     /// Creates a fulfilled promise
@@ -75,31 +86,34 @@ public final class Promise<S, E> {
     /// success/failure callback
     @discardableResult
     public func on<V>(success: @escaping (S) -> V, failure: @escaping (E) -> V) -> Promise<V,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<V,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve(success($0)) }
-            self.registerFailure { promise2.resolve(failure($0)) }
-        }
+        self.registerSuccess { promise2.resolve(success($0)) }
+        self.registerFailure { promise2.resolve(failure($0)) }
         return promise2
     }
     
     @discardableResult
     public func on<V>(success: @escaping (S) -> Promise<V,E>, failure: @escaping (E) -> V) -> Promise<V,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<V,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve(success($0)) }
-            self.registerFailure { promise2.resolve(failure($0)) }
-        }
+        self.registerSuccess { promise2.resolve(success($0)) }
+        self.registerFailure { promise2.resolve(failure($0)) }
         return promise2
     }
     
     @discardableResult
     public func on<V>(success: @escaping (S) -> V, failure: @escaping (E) -> Promise<V,E>) -> Promise<V,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<V,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve(success($0)) }
-            self.registerFailure { promise2.resolve(failure($0)) }
-        }
+        self.registerSuccess { promise2.resolve(success($0)) }
+        self.registerFailure { promise2.resolve(failure($0)) }
         return promise2
     }
     
@@ -107,11 +121,12 @@ public final class Promise<S, E> {
     /// success/failure callback.
     @discardableResult
     public func on<V>(success: @escaping (S) -> Promise<V,E>, failure: @escaping (E) -> Promise<V,E>) -> Promise<V,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<V,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve(success($0)) }
-            self.registerFailure { promise2.resolve(failure($0)) }
-        }
+        self.registerSuccess { promise2.resolve(success($0)) }
+        self.registerFailure { promise2.resolve(failure($0)) }
         return promise2
     }
     
@@ -119,11 +134,12 @@ public final class Promise<S, E> {
     /// success callback
     @discardableResult
     public func onSuccess<V>(_ success: @escaping (S) -> V) -> Promise<V,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<V,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve(success($0)) }
-            self.registerFailure { promise2.reject($0) }
-        }
+        self.registerSuccess { promise2.resolve(success($0)) }
+        self.registerFailure { promise2.reject($0) }
         return promise2
     }
     
@@ -131,11 +147,12 @@ public final class Promise<S, E> {
     /// success callback
     @discardableResult
     public func onSuccess<V>(_ success: @escaping (S) -> Promise<V,E>) -> Promise<V,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<V,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve(success($0)) }
-            self.registerFailure { promise2.reject($0) }
-        }
+        self.registerSuccess { promise2.resolve(success($0)) }
+        self.registerFailure { promise2.reject($0) }
         return promise2
     }
     
@@ -143,11 +160,12 @@ public final class Promise<S, E> {
     /// the value returned by the callback
     @discardableResult
     public func onFailure(_ failure: @escaping (E) -> S) -> Promise<S,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<S,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve($0) }
-            self.registerFailure { promise2.resolve(failure($0)) }
-        }
+        self.registerSuccess { promise2.resolve($0) }
+        self.registerFailure { promise2.resolve(failure($0)) }
         return promise2
     }
     
@@ -155,60 +173,65 @@ public final class Promise<S, E> {
     /// the value returned by the callback
     @discardableResult
     public func onFailure(_ failure: @escaping (E) -> Promise<S,E>) -> Promise<S,E> {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
         let promise2 = Promise<S,E>()
-        privQueue.sync {
-            self.registerSuccess { promise2.resolve($0) }
-            self.registerFailure { promise2.resolve(failure($0)) }
-        }
+        self.registerSuccess { promise2.resolve($0) }
+        self.registerFailure { promise2.resolve(failure($0)) }
         return promise2
     }
     
     /// Registers a failure callback. Returns nothing, this is an helper to be
     // used at the end of promise chains
     public func onFailure(failure: @escaping (E) -> Void) {
-        privQueue.sync {
-            self.registerFailure { failure($0) }
-        }
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
+        self.registerFailure { failure($0) }
     }
     
     /// Resolves the promise with the given value. Executes all registered
     /// callbacks, in the order they were scheduled
     public func resolve(_ value: S) {
-        privQueue.sync {
-            guard case .pending = self.state else { return }
-            
-            self.state = .fulfilled(value)
-            for handler in self.successHandlers {
-                self.dispatch(value, handler)
-            }
-            self.successHandlers.removeAll()
-            self.failureHandlers.removeAll()
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
+        guard case .pending = self.state else { return }
+        
+        self.state = .fulfilled(value)
+        for handler in self.successHandlers {
+            self.dispatch(value, handler)
         }
+        self.successHandlers.removeAll()
+        self.failureHandlers.removeAll()
     }
     
     /// Resolves the promise with the given promise. This makes the receiver
     // take the state of the given promise
     public func resolve(_ promise: Promise<S,E>) {
-        privQueue.sync {
-            guard case .pending = self.state, promise !== self else { return }
-            
-            promise.registerSuccess { self.resolve($0) }
-            promise.registerFailure { self.reject($0) }
-        }
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
+        guard case .pending = self.state, promise !== self else { return }
+        
+        promise.registerSuccess { self.resolve($0) }
+        promise.registerFailure { self.reject($0) }
     }
     
     /// Rejects the promise with the given reason. Executes all registered
     /// failure callbacks, in the order they were scheduled
     public func reject(_ reason: E) {
-        privQueue.sync {
-            guard case .pending = self.state else { return }
-            self.state = .rejected(reason)
-            for handler in self.failureHandlers {
-                self.dispatch(reason, handler)
-            }
-            self.successHandlers.removeAll()
-            self.failureHandlers.removeAll()
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        
+        guard case .pending = self.state else { return }
+        self.state = .rejected(reason)
+        for handler in self.failureHandlers {
+            self.dispatch(reason, handler)
         }
+        self.successHandlers.removeAll()
+        self.failureHandlers.removeAll()
     }
     
     private func registerSuccess(handler: @escaping (S)->Void) {

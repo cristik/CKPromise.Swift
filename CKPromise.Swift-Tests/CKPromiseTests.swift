@@ -295,4 +295,13 @@ class CKPromiseTests: XCTestCase {
         waitForExpectations(timeout: 0.1, handler: nil)
         XCTAssertEqual([4,5,6], chainValue)
     }
+    
+    func testResolvePerf() {
+        measure {
+            for _ in 1...100000 {
+                Promise<Int,Int>().resolve(6)
+            }
+        }
+        
+    }
 }
