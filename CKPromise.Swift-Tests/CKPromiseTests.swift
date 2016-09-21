@@ -9,32 +9,34 @@
 import XCTest
 @testable import CKPromise_Swift
 
-extension PromiseState: Equatable {}
+extension Result: Equatable {}
 
 /// Just for testing purposes
-func ==<S,E>(lhs: PromiseState<S,E>, rhs: PromiseState<S,E>) -> Bool {
+public func ==<S>(lhs: Result<S>, rhs: Result<S>) -> Bool {
     return String(stringInterpolationSegment: lhs) == String(stringInterpolationSegment: rhs)
 }
 
+extension String: Error {}
+
 class CKPromiseTests: XCTestCase {
-    let promise = Promise<Int, String>()
+    let promise = Promise<Int>()
     
     func testNewlyCreatedPromiseIsInPendingState() {
-        XCTAssertEqual(PromiseState<Int,String>.pending, promise.state)
+        XCTAssertNil(promise.result)
     }
     
     // 2.1.1 When pending, a promise:
     // 2.1.1.1 may transition to either the fulfilled or rejected state.
     func testResolvedPromiseIsInFulfilledState() {
         promise.resolve(5)
-        XCTAssertEqual(PromiseState<Int,String>.fulfilled(5), promise.state)
+        XCTAssertEqual(Result<Int>.success(5), promise.result)
     }
 
     // 2.1.1 When pending, a promise:
     // 2.1.1.1 may transition to either the fulfilled or rejected state.
     func testRejectedPromiseIsInRejecteState() {
         promise.reject("a")
-        XCTAssertEqual(PromiseState<Int,String>.rejected("a"), promise.state)
+        XCTAssertEqual(Result<Int>.failure("a"), promise.result)
     }
     
     // 2.1.2 When fulfilled, a promise:
@@ -43,8 +45,8 @@ class CKPromiseTests: XCTestCase {
     func testResolvingAgainKeepsInResolved() {
         promise.resolve(5)
         promise.resolve(6)
-        switch promise.state {
-        case .fulfilled(let value):
+        switch promise.result {
+        case .some(.success(let value)):
             XCTAssertEqual(value, 5)
             break
         default:
@@ -55,8 +57,8 @@ class CKPromiseTests: XCTestCase {
     func testRejectingAfteResolvingKeepsInResolved() {
         promise.resolve(5)
         promise.reject("a")
-        switch promise.state {
-        case .fulfilled(let value):
+        switch promise.result {
+        case .some(.success(let value)):
             XCTAssertEqual(value, 5)
             break
         default:
@@ -70,9 +72,9 @@ class CKPromiseTests: XCTestCase {
     func testRejectingAgainKeepsInRejected() {
         promise.reject("a")
         promise.reject("b")
-        switch promise.state {
-        case .rejected(let reason):
-            XCTAssertEqual(reason, "a")
+        switch promise.result {
+        case .some(.failure(let reason)):
+            XCTAssertEqual(reason as? String, "a")
             break
         default:
             XCTFail()
@@ -82,9 +84,9 @@ class CKPromiseTests: XCTestCase {
     func testResolvingAfterRejectingKeepsInRejected() {
         promise.reject("a")
         promise.resolve(1)
-        switch promise.state {
-        case .rejected(let reason):
-            XCTAssertEqual(reason, "a")
+        switch promise.result {
+        case .some(.failure(let reason)):
+            XCTAssertEqual(reason as? String, "a")
             break
         default:
             XCTFail()
@@ -206,7 +208,7 @@ class CKPromiseTests: XCTestCase {
                                   failure: { (_) -> Double in ex.fulfill(); return 1.8 })
         promise.reject("jk")
         waitForExpectations(timeout: 0.1, handler: nil)
-        XCTAssertEqual(PromiseState<Double,String>.fulfilled(1.8), promise2.state)
+        XCTAssertEqual(Result<Double>.success(1.8), promise2.result)
     }
     
     // 2.2.7.2 If either onFulfilled or onRejected throws an exception e, promise2 must be rejected with e as the reason.
@@ -219,13 +221,13 @@ class CKPromiseTests: XCTestCase {
     
     // 2.3.2 If x is a promise, adopt its state
     func testResolveWithAPendingPromiseKeepsThisOnePending() {
-        let otherPromise = Promise<Int, String>()
+        let otherPromise = Promise<Int>()
         promise.resolve(otherPromise)
-        XCTAssertEqual(promise.state, PromiseState<Int,String>.pending)
+        XCTAssertNil(promise.result)
     }
     
     func testResolveWithAResolvedPromiseResolvesThisOne() {
-        let otherPromise = Promise<Int, String>()
+        let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var value: Int?
         promise.onSuccess {
@@ -235,12 +237,12 @@ class CKPromiseTests: XCTestCase {
         otherPromise.resolve(14)
         promise.resolve(otherPromise)
         waitForExpectations(timeout: 0.1, handler: nil)
-        XCTAssertEqual(promise.state, PromiseState<Int,String>.fulfilled(14))
+        XCTAssertEqual(promise.result, .some(.success(14)))
         XCTAssertEqual(14, value)
     }
     
     func testResolveWithAPendingPromiseResolvesThisOneWhenTheOtherOneIsResolved() {
-        let otherPromise = Promise<Int, String>()
+        let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var value: Int?
         promise.onSuccess {
@@ -254,26 +256,26 @@ class CKPromiseTests: XCTestCase {
     }
     
     func testResolveWithARejectedPromiseRejectsThisOne() {
-        let otherPromise = Promise<Int, String>()
+        let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var reason: String?
         promise.onFailure { rsn -> Void in
-            reason = rsn
+            reason = rsn as? String
             ex.fulfill()
         }
         otherPromise.reject("op")
         promise.resolve(otherPromise)
         waitForExpectations(timeout: 0.1, handler: nil)
-        XCTAssertEqual(promise.state, PromiseState<Int,String>.rejected("op"))
+        XCTAssertEqual(promise.result, Result<Int>.failure("op"))
         XCTAssertEqual("op", reason)
     }
     
     func testResolveWithAPendingPromiseRejectsThisOneWhenTheOtherOneGetsRejected() {
-        let otherPromise = Promise<Int, String>()
+        let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var reason: String?
         promise.onFailure { rsn -> Void in
-            reason = rsn
+            reason = rsn as? String
             ex.fulfill()
         }
         promise.resolve(otherPromise)
@@ -299,7 +301,7 @@ class CKPromiseTests: XCTestCase {
     func testResolvePerf() {
         measure {
             for _ in 1...100000 {
-                Promise<Int,Int>().resolve(6)
+                Promise<Int>().resolve(6)
             }
         }
         

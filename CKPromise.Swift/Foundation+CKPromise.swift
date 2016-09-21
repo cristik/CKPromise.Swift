@@ -8,8 +8,8 @@
 
 import Foundation
 
-public func promisify<T>(_ call: () throws -> T) -> Promise<T, Error> {
-    let promise = Promise<T, Error>()
+public func promisify<T>(_ call: () throws -> T) -> Promise<T> {
+    let promise = Promise<T>()
     do {
         promise.resolve(try call())
     } catch let err {
@@ -25,12 +25,12 @@ public extension URLSession {
     /// - an error occurred
     /// - there is no received data
     /// - the url response could not be casted to the type passed as the generic argument
-    func send<T: URLResponse>(request: URLRequest) -> Promise<(T, Data), Error> {
+    func send<T: URLResponse>(request: URLRequest) -> Promise<(T, Data)> {
         return send(request: request, processor: { ($0 as! T, $1) })
     }
     
-    func send<R: URLResponse, V>(request: URLRequest, processor: @escaping (R, Data) throws -> V) -> Promise<V, Error> {
-        let promise = Promise<V, Error>()
+    func send<R: URLResponse, V>(request: URLRequest, processor: @escaping (R, Data) throws -> V) -> Promise<V> {
+        let promise = Promise<V>()
         let task = self.dataTask(with: request) { data, urlResponse, error in
             if let error = error {
                 // we have an error, means the request failed, reject promise
@@ -57,7 +57,7 @@ public extension URLSession {
     /// Same as sendRequest(), but with a NSHTTPURLResponse
     /// Checks if the url schema is http/https, and if not it rejects the promise
     /// without sending the actual requesst
-    func sendHTTP(request: URLRequest) -> Promise<(HTTPURLResponse, Data), Error> {
+    func sendHTTP(request: URLRequest) -> Promise<(HTTPURLResponse, Data)> {
         guard let scheme = request.url?.scheme, ["http", "https"].contains(scheme) else {
             return Promise(rejectedWith: NSError.invalidURLRequestError())
         }
@@ -109,11 +109,11 @@ enum DictionaryExtractError: Error {
 }
 
 public protocol DictionaryInitializable {
-    static func from(dictionary: [NSObject:AnyObject]) throws -> Self
+    static func from(dictionary: [String:Any]) throws -> Self
 }
 
 public extension DictionaryInitializable {
-    static func from(dictionaries: [[NSObject:AnyObject]]) throws -> [Self] {
+    static func from(dictionaries: [[String:Any]]) throws -> [Self] {
         return try dictionaries.map { try from(dictionary: $0) }
     }
 }

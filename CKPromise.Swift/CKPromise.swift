@@ -8,15 +8,56 @@
 
 import Dispatch
 
+public enum Result<T> {
+    case success(T)
+    case failure(Error)
+    
+    public init(closure: () throws -> T) {
+        do {
+            self = try .success(closure())
+        } catch let error {
+            self = .failure(error)
+        }
+    }
+    
+    public func flatMap<U>(transform: (T) -> Result<U>) -> Result<U> {
+        switch self {
+        case .success(let value): return transform(value)
+        case .failure(let error): return .failure(error)
+        }
+    }
+    
+    public func map<U>(transform: (T) throws -> U) -> Result<U>{
+        switch self {
+        case .success(let value): return Result<U> { try transform(value) }
+        case .failure(let error): return .failure(error)
+        }
+    }
+    
+    public var value: T? {
+        get {
+            guard case .success(let value) = self else { return nil }
+            return value
+        }
+    }
+    
+    public var error: Error? {
+        get {
+            guard case .failure(let error) = self else { return nil }
+            return error
+        }
+    }
+}
+
 /// A promise represents the eventual result of an asynchronous operation.
 /// The primary way of interacting with a promise is through its `then` method,
 /// which registers callbacks to receive either a promise’s eventual value or
 /// the reason why the promise cannot be fulfilled.
-public final class Promise<S, E> {
-    internal var state: PromiseState<S,E> = .pending
+public final class Promise<S> {
+    internal var result: Result<S>?
     private var mutex = pthread_mutex_t()
     private var successHandlers: [(S) -> Void] = []
-    private var failureHandlers: [(E) -> Void] = []
+    private var failureHandlers: [(Error) -> Void] = []
     
     /// Creates a pending promise
     public required init() {
@@ -37,23 +78,23 @@ public final class Promise<S, E> {
     /// Creates a fulfilled promise
     public convenience init(fulfilledWith value: S) {
         self.init()
-        state = .fulfilled(value)
+        result = .success(value)
     }
     
     /// Creates a rejected promise
-    public convenience init(rejectedWith reason: E) {
+    public convenience init(rejectedWith reason: Error) {
         self.init()
-        state = .rejected(reason)
+        result = .failure(reason)
     }
     
     /// Returns a promise that waits for the gived promises to either success
     /// or fail. Reports success if at least one of the promises succeeded, and
     /// failure if all of them failed.
-    public static func whenAll<S2,E2>(promises: [Promise<S2,E2>]) -> Promise<[S2],E2> {
-        let promise2 = Promise<[S2],E2>()
+    public static func whenAll<S2>(promises: [Promise<S2>]) -> Promise<[S2]> {
+        let promise2 = Promise<[S2]>()
         var remainingPromises: Int = promises.count
         var values = [S2]()
-        var errors = [E2]()
+        var errors = [Error]()
         let check = {
             if remainingPromises == 0 {
                 if promises.count > 0 && errors.count == promises.count {
@@ -85,110 +126,184 @@ public final class Promise<S, E> {
     /// Returns a promise that gets fulfilled with the result of the
     /// success/failure callback
     @discardableResult
-    public func on<V>(success: @escaping (S) -> V, failure: @escaping (E) -> V) -> Promise<V,E> {
+    public func on<V>(success: @escaping (S) throws -> V, failure: @escaping (Error) throws -> V) -> Promise<V> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V,E>()
-        self.registerSuccess { promise2.resolve(success($0)) }
-        self.registerFailure { promise2.resolve(failure($0)) }
+        let promise2 = Promise<V>()
+        registerSuccess {
+            do {
+                try promise2.resolve(success($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
+        
+        registerFailure {
+            do {
+                try promise2.resolve(failure($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
+        
         return promise2
     }
     
     @discardableResult
-    public func on<V>(success: @escaping (S) -> Promise<V,E>, failure: @escaping (E) -> V) -> Promise<V,E> {
+    public func on<V>(success: @escaping (S) throws -> Promise<V>, failure: @escaping (Error) throws -> V) -> Promise<V> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V,E>()
-        self.registerSuccess { promise2.resolve(success($0)) }
-        self.registerFailure { promise2.resolve(failure($0)) }
+        let promise2 = Promise<V>()
+        registerSuccess {
+            do {
+                try promise2.resolve(success($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
+        registerFailure {
+            do {
+                try promise2.resolve(failure($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
         return promise2
     }
     
     @discardableResult
-    public func on<V>(success: @escaping (S) -> V, failure: @escaping (E) -> Promise<V,E>) -> Promise<V,E> {
+    public func on<V>(success: @escaping (S) throws -> V, failure: @escaping (Error) throws -> Promise<V>) -> Promise<V> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V,E>()
-        self.registerSuccess { promise2.resolve(success($0)) }
-        self.registerFailure { promise2.resolve(failure($0)) }
+        let promise2 = Promise<V>()
+        registerSuccess {
+            do {
+                try promise2.resolve(success($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
+        registerFailure {
+            do {
+                try promise2.resolve(failure($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
         return promise2
     }
     
     /// Returns a promise that gets fulfilled with the result of the
     /// success/failure callback.
     @discardableResult
-    public func on<V>(success: @escaping (S) -> Promise<V,E>, failure: @escaping (E) -> Promise<V,E>) -> Promise<V,E> {
+    public func on<V>(success: @escaping (S) throws -> Promise<V>, failure: @escaping (Error) throws -> Promise<V>) -> Promise<V> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V,E>()
-        self.registerSuccess { promise2.resolve(success($0)) }
-        self.registerFailure { promise2.resolve(failure($0)) }
+        let promise2 = Promise<V>()
+        registerSuccess {
+            do {
+                try promise2.resolve(success($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
+        registerFailure {
+            do {
+                try promise2.resolve(failure($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
         return promise2
     }
     
     /// Returns a promise that gets fulfilled with the result of the
     /// success callback
     @discardableResult
-    public func onSuccess<V>(_ success: @escaping (S) -> V) -> Promise<V,E> {
+    public func onSuccess<V>(_ success: @escaping (S) throws -> V) -> Promise<V> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V,E>()
-        self.registerSuccess { promise2.resolve(success($0)) }
-        self.registerFailure { promise2.reject($0) }
+        let promise2 = Promise<V>()
+        registerSuccess {
+            do {
+                try promise2.resolve(success($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
+        registerFailure { promise2.reject($0) }
         return promise2
     }
     
     /// Returns a promise that gets fulfilled with the result of the
     /// success callback
     @discardableResult
-    public func onSuccess<V>(_ success: @escaping (S) -> Promise<V,E>) -> Promise<V,E> {
+    public func onSuccess<V>(_ success: @escaping (S) throws -> Promise<V>) -> Promise<V> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V,E>()
-        self.registerSuccess { promise2.resolve(success($0)) }
-        self.registerFailure { promise2.reject($0) }
+        let promise2 = Promise<V>()
+        registerSuccess {
+            do {
+                try promise2.resolve(success($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
+        registerFailure { promise2.reject($0) }
         return promise2
     }
     
     /// Registers a failure callback. The returned promise gets resolved with
     /// the value returned by the callback
     @discardableResult
-    public func onFailure(_ failure: @escaping (E) -> S) -> Promise<S,E> {
+    public func onFailure(_ failure: @escaping (Error) throws -> S) -> Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<S,E>()
-        self.registerSuccess { promise2.resolve($0) }
-        self.registerFailure { promise2.resolve(failure($0)) }
+        let promise2 = Promise<S>()
+        registerSuccess { promise2.resolve($0) }
+        registerFailure {
+            do {
+                try promise2.resolve(failure($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
         return promise2
     }
     
     /// Registers a failure callback. The returned promise gets resolved with
     /// the value returned by the callback
     @discardableResult
-    public func onFailure(_ failure: @escaping (E) -> Promise<S,E>) -> Promise<S,E> {
+    public func onFailure(_ failure: @escaping (Error) throws -> Promise<S>) -> Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<S,E>()
-        self.registerSuccess { promise2.resolve($0) }
-        self.registerFailure { promise2.resolve(failure($0)) }
+        let promise2 = Promise<S>()
+        registerSuccess { promise2.resolve($0) }
+        registerFailure {
+            do {
+                try promise2.resolve(failure($0))
+            } catch let error {
+                promise2.reject(error)
+            }
+        }
         return promise2
     }
     
     /// Registers a failure callback. Returns nothing, this is an helper to be
     // used at the end of promise chains
-    public func onFailure(failure: @escaping (E) -> Void) {
+    public func onFailure(failure: @escaping (Error) throws -> Void) {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        self.registerFailure { failure($0) }
+        registerFailure { try? failure($0) }
     }
     
     /// Resolves the promise with the given value. Executes all registered
@@ -197,9 +312,9 @@ public final class Promise<S, E> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        guard case .pending = self.state else { return }
+        guard result == nil else { return }
         
-        self.state = .fulfilled(value)
+        result = .success(value)
         for handler in self.successHandlers {
             self.dispatch(value, handler)
         }
@@ -209,11 +324,11 @@ public final class Promise<S, E> {
     
     /// Resolves the promise with the given promise. This makes the receiver
     // take the state of the given promise
-    public func resolve(_ promise: Promise<S,E>) {
+    public func resolve(_ promise: Promise<S>) {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        guard case .pending = self.state, promise !== self else { return }
+        guard result == nil, promise !== self else { return }
         
         promise.registerSuccess { self.resolve($0) }
         promise.registerFailure { self.reject($0) }
@@ -221,12 +336,13 @@ public final class Promise<S, E> {
     
     /// Rejects the promise with the given reason. Executes all registered
     /// failure callbacks, in the order they were scheduled
-    public func reject(_ reason: E) {
+    public func reject(_ reason: Error) {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        guard case .pending = self.state else { return }
-        self.state = .rejected(reason)
+        guard result == nil else { return }
+        
+        result = .failure(reason)
         for handler in self.failureHandlers {
             self.dispatch(reason, handler)
         }
@@ -235,18 +351,18 @@ public final class Promise<S, E> {
     }
     
     private func registerSuccess(handler: @escaping (S)->Void) {
-        switch state {
-        case .pending: successHandlers.append(handler)
-        case .fulfilled(let value): dispatch(value, handler)
-        case .rejected: break
+        switch result {
+        case .none: successHandlers.append(handler)
+        case .some(.success(let value)): dispatch(value, handler)
+        case .some(.failure): break
         }
     }
     
-    private func registerFailure(handler: @escaping (E)->Void) {
-        switch state {
-        case .pending: failureHandlers.append(handler)
-        case .fulfilled: break
-        case .rejected(let reason): dispatch(reason, handler)
+    private func registerFailure(handler: @escaping (Error)->Void) {
+        switch result {
+        case .none: failureHandlers.append(handler)
+        case .some(.success): break
+        case .some(.failure(let reason)): dispatch(reason, handler)
         }
     }
     
@@ -256,10 +372,4 @@ public final class Promise<S, E> {
             handler(arg)
         }
     }
-}
-
-internal enum PromiseState<S,E> {
-    case pending
-    case fulfilled(S)
-    case rejected(E)
 }
