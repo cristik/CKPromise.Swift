@@ -12,6 +12,10 @@ public enum Result<T> {
     case success(T)
     case failure(Error)
     
+    public init(_ value: T) {
+        self = .success(value)
+    }
+    
     public init(closure: () throws -> T) {
         do {
             self = try .success(closure())
@@ -47,6 +51,11 @@ public enum Result<T> {
             return error
         }
     }
+}
+
+infix operator >>=
+public func >>=<T,U>(lhs: Result<T>, rhs: (T) -> Result<U>) -> Result<U> {
+    return lhs.flatMap(transform: rhs)
 }
 
 /// A promise represents the eventual result of an asynchronous operation.
