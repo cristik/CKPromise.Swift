@@ -12,8 +12,12 @@ public enum Result<T> {
     case success(T)
     case failure(Error)
     
-    public init(_ value: T) {
+    public init(value: T) {
         self = .success(value)
+    }
+    
+    public init(error: Error) {
+        self = .failure(error)
     }
     
     public init(closure: () throws -> T) {
@@ -308,11 +312,16 @@ public final class Promise<S> {
     
     /// Registers a failure callback. Returns nothing, this is an helper to be
     // used at the end of promise chains
-    public func onFailure(failure: @escaping (Error) throws -> Void) {
+    public func onFailure(_ failure: @escaping (Error) throws -> Void) {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
         registerFailure { try? failure($0) }
+    }
+    
+    public func onCompletion(_ handler: @escaping (Result<S>) -> Void) {
+        registerSuccess { handler(Result<S>(value: $0)) }
+        registerFailure { handler(Result<S>(error: $0)) }
     }
     
     /// Resolves the promise with the given value. Executes all registered
