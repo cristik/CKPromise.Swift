@@ -18,6 +18,21 @@ public func promisify<T>(_ call: () throws -> T) -> Promise<T> {
     return promise
 }
 
+open class URLSessionPromise<S>: Promise<S> {
+    let session: URLSession
+    let taskIdentifier: Int
+    
+    public init(session: URLSession, taskIdentifier: Int) {
+        self.session = session
+        self.taskIdentifier = taskIdentifier
+        super.init()
+    }
+    
+    override open func chainedPromise<V>() -> Promise<V> {
+        return URLSessionPromise<V>(session: session, taskIdentifier: taskIdentifier)
+    }
+}
+
 public extension URLSession {
     /// Creates a promise that gets resolved if the request succeeds. A data task
     /// is used for the transfer.
@@ -25,12 +40,12 @@ public extension URLSession {
     /// - an error occurred
     /// - there is no received data
     /// - the url response could not be casted to the type passed as the generic argument
-    func send<T: URLResponse>(request: URLRequest) -> Promise<(T, Data)> {
+    func send<T: URLResponse>(request: URLRequest) -> URLSessionPromise<(T, Data)> {
         return send(request: request, processor: { ($0 as! T, $1) })
     }
     
-    func send<R: URLResponse, V>(request: URLRequest, processor: @escaping (R, Data) throws -> V) -> Promise<V> {
-        let promise = Promise<V>()
+    func send<R: URLResponse, V>(request: URLRequest, processor: @escaping (R, Data) throws -> V) -> URLSessionPromise<V> {
+        var promise: URLSessionPromise<V>!
         let task = self.dataTask(with: request) { data, urlResponse, error in
             if let error = error {
                 // we have an error, means the request failed, reject promise
@@ -51,17 +66,8 @@ public extension URLSession {
             }
         }
         task.resume()
+        promise = URLSessionPromise<V>(session: self, taskIdentifier: task.taskIdentifier)
         return promise
-    }
-    
-    /// Same as sendRequest(), but with a NSHTTPURLResponse
-    /// Checks if the url schema is http/https, and if not it rejects the promise
-    /// without sending the actual requesst
-    func sendHTTP(request: URLRequest) -> Promise<(HTTPURLResponse, Data)> {
-        guard let scheme = request.url?.scheme, ["http", "https"].contains(scheme) else {
-            return Promise(rejectedWith: NSError.invalidURLRequestError())
-        }
-        return send(request: request)
     }
 }
 
@@ -104,36 +110,55 @@ public extension NSError {
     }
 }
 
-enum DictionaryExtractError: Error {
-    case keyNotFound, typeMismatch
+public enum DictionaryExtractError: Error {
+    case keyNotFound(String)
+    case typeMismatch(String, String, String)
 }
 
 public protocol DictionaryInitializable {
-    static func from(dictionary: [String:Any]) throws -> Self
+    init(dictionary: [String:Any]) throws
 }
 
 public extension DictionaryInitializable {
     static func from(dictionaries: [[String:Any]]) throws -> [Self] {
-        return try dictionaries.map { try from(dictionary: $0) }
+        return try dictionaries.map { try Self(dictionary: $0) }
     }
 }
 
 public extension Dictionary {
     func extract<T>(_ key: Key) throws -> T {
-        guard let value = self[key] else { throw DictionaryExtractError.keyNotFound }
-        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        guard let value = self[key] else {
+            throw DictionaryExtractError.keyNotFound("\(key)")
+        }
+        guard let result = value as? T else {
+            throw DictionaryExtractError.typeMismatch("\(key)", "\(type(of: value))", "\(T.self)")
+        }
         return result
     }
     
+    func extract<T: DictionaryInitializable>(_ key: Key) throws -> T {
+        return try T(dictionary: extract(key))
+    }
+    
+    func extract<T: DictionaryInitializable>(_ key: Key) throws -> [T] {
+        return try (extract(key) as [[String:Any]]).map { try T.init(dictionary: $0) }
+    }
+    
     func extract<T>(_ key: Key, defaultValue: T) throws -> T {
-        guard let value = self[key] else { return defaultValue }
-        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        guard let value = self[key], !(value is NSNull) else { return defaultValue }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch("\(key)", "\(type(of: value))", "\(T.self)") }
         return result
     }
     
     func extracto<T>(_ key: Key) throws -> T? {
         guard let value = self[key] else { return nil }
-        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch }
+        guard !(value is NSNull) else { return nil }
+        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch("\(key)", "\(type(of: value))", "\(T.self)") }
         return result
+    }
+    
+    func extracto<T: DictionaryInitializable>(_ key: Key) throws -> T? {
+        guard let dict: [String:Any] = try extracto(key) else { return nil }
+        return try T(dictionary: dict)
     }
 }

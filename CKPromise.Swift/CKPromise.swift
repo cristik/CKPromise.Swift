@@ -8,84 +8,36 @@
 
 import Dispatch
 
-public enum Result<T> {
-    case success(T)
-    case failure(Error)
-    
-    public init(value: T) {
-        self = .success(value)
-    }
-    
-    public init(error: Error) {
-        self = .failure(error)
-    }
-    
-    public init(closure: () throws -> T) {
-        do {
-            self = try .success(closure())
-        } catch let error {
-            self = .failure(error)
-        }
-    }
-    
-    public func flatMap<U>(transform: (T) -> Result<U>) -> Result<U> {
-        switch self {
-        case .success(let value): return transform(value)
-        case .failure(let error): return .failure(error)
-        }
-    }
-    
-    public func map<U>(transform: (T) throws -> U) -> Result<U>{
-        switch self {
-        case .success(let value): return Result<U> { try transform(value) }
-        case .failure(let error): return .failure(error)
-        }
-    }
-    
-    public var value: T? {
-        get {
-            guard case .success(let value) = self else { return nil }
-            return value
-        }
-    }
-    
-    public var error: Error? {
-        get {
-            guard case .failure(let error) = self else { return nil }
-            return error
-        }
-    }
-}
-
-infix operator >>=
-public func >>=<T,U>(lhs: Result<T>, rhs: (T) -> Result<U>) -> Result<U> {
-    return lhs.flatMap(transform: rhs)
-}
-
 /// A promise represents the eventual result of an asynchronous operation.
 /// The primary way of interacting with a promise is through its `then` method,
 /// which registers callbacks to receive either a promise’s eventual value or
 /// the reason why the promise cannot be fulfilled.
-public final class Promise<S> {
+open class Promise<S> {
     internal var result: Result<S>?
     private var mutex = pthread_mutex_t()
     private var successHandlers: [(S) -> Void] = []
     private var failureHandlers: [(Error) -> Void] = []
     
     /// Creates a pending promise
-    public required init() {
+    public init() {
         var attr = pthread_mutexattr_t()
-        guard pthread_mutexattr_init(&attr) == 0 else {
-            preconditionFailure()
-        }
-        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL)
-        guard pthread_mutex_init(&mutex, &attr) == 0 else {
-            preconditionFailure()
+        guard pthread_mutexattr_init(&attr) == 0,
+            pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL) == 0,
+            pthread_mutex_init(&mutex, &attr) == 0 else {
+                preconditionFailure()
         }
     }
     
     deinit {
         pthread_mutex_destroy(&mutex)
+    }
+    
+    public static func fulfilled(with value: S) -> Promise {
+        return Promise(fulfilledWith: value)
+    }
+    
+    public static func rejected(with reason: Error) -> Promise {
+        return Promise(rejectedWith: reason)
     }
     
     /// Creates a fulfilled promise
@@ -103,7 +55,7 @@ public final class Promise<S> {
     /// Returns a promise that waits for the gived promises to either success
     /// or fail. Reports success if at least one of the promises succeeded, and
     /// failure if all of them failed.
-    public static func whenAll<S2>(promises: [Promise<S2>]) -> Promise<[S2]> {
+    public static func when<S2>(all promises: [Promise<S2>]) -> Promise<[S2]> {
         let promise2 = Promise<[S2]>()
         var remainingPromises: Int = promises.count
         var values = [S2]()
@@ -132,6 +84,13 @@ public final class Promise<S> {
         return promise2
     }
     
+    /// Helper method for derived promises. This method is called when
+    /// a chained promise needs to be constructed, instead of directly calling
+    /// the promise constructor
+    open func chainedPromise<V>() -> Promise<V> {
+        return Promise<V>()
+    }
+    
     /// This is the `then` method. It allows clients to observe the promise's
     /// result - either success or failure.
     /// The success/failure handlers are dispatched on the main thread, in an
@@ -143,7 +102,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V>()
+        let promise2: Promise<V> = chainedPromise()
         registerSuccess {
             do {
                 try promise2.resolve(success($0))
@@ -168,7 +127,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V>()
+        let promise2: Promise<V> = chainedPromise()
         registerSuccess {
             do {
                 try promise2.resolve(success($0))
@@ -191,7 +150,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V>()
+        let promise2: Promise<V> = chainedPromise()
         registerSuccess {
             do {
                 try promise2.resolve(success($0))
@@ -216,7 +175,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V>()
+        let promise2: Promise<V> = chainedPromise()
         registerSuccess {
             do {
                 try promise2.resolve(success($0))
@@ -241,7 +200,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V>()
+        let promise2: Promise<V> = chainedPromise()
         registerSuccess {
             do {
                 try promise2.resolve(success($0))
@@ -260,7 +219,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<V>()
+        let promise2: Promise<V> = chainedPromise()
         registerSuccess {
             do {
                 try promise2.resolve(success($0))
@@ -279,7 +238,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<S>()
+        let promise2: Promise<S> = chainedPromise()
         registerSuccess { promise2.resolve($0) }
         registerFailure {
             do {
@@ -298,7 +257,7 @@ public final class Promise<S> {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
         
-        let promise2 = Promise<S>()
+        let promise2: Promise<S> = chainedPromise()
         registerSuccess { promise2.resolve($0) }
         registerFailure {
             do {
@@ -319,9 +278,44 @@ public final class Promise<S> {
         registerFailure { try? failure($0) }
     }
     
-    public func onCompletion(_ handler: @escaping (Result<S>) -> Void) {
-        registerSuccess { handler(Result<S>(value: $0)) }
-        registerFailure { handler(Result<S>(error: $0)) }
+    @discardableResult
+    public func onCompletion<V>(_ handler: @escaping (Result<S>) throws -> V) -> Promise<V> {
+        let promise2: Promise<V> = chainedPromise()
+        registerSuccess {
+            do {
+                try promise2.resolve(handler(Result<S>(value: $0)))
+            } catch {
+                promise2.reject(error)
+            }
+        }
+        registerFailure {
+            do {
+                try promise2.resolve(handler(Result<S>(error: $0)))
+            } catch {
+                promise2.reject(error)
+            }
+        }
+        return promise2
+    }
+    
+    @discardableResult
+    public func onCompletion<V>(_ handler: @escaping (Result<S>) throws -> Promise<V>) -> Promise<V> {
+        let promise2: Promise<V> = chainedPromise()
+        registerSuccess {
+            do {
+                try promise2.resolve(handler(Result<S>(value: $0)))
+            } catch {
+                promise2.reject(error)
+            }
+        }
+        registerFailure {
+            do {
+                try promise2.resolve(handler(Result<S>(error: $0)))
+            } catch {
+                promise2.reject(error)
+            }
+        }
+        return promise2
     }
     
     /// Resolves the promise with the given value. Executes all registered
