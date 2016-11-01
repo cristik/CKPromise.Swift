@@ -18,6 +18,7 @@ public func promisify<T>(_ call: () throws -> T) -> Promise<T> {
     return promise
 }
 
+/// A Promise subclass that carries the session and task identifier attached to
 open class URLSessionPromise<S>: Promise<S> {
     let session: URLSession
     let taskIdentifier: Int
@@ -73,6 +74,7 @@ public extension URLSession {
 
 public extension Data {
     
+    /// Same as parsedJSON() but with support for declaring the result type
     func parsedJSON<T>(to: T.Type) throws -> T {
         return try parsedJSON()
     }

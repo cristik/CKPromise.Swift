@@ -271,6 +271,7 @@ open class Promise<S> {
     
     /// Registers a failure callback. Returns nothing, this is an helper to be
     // used at the end of promise chains
+    @discardableResult
     public func onFailure(_ failure: @escaping (Error) throws -> Void) {
         pthread_mutex_lock(&mutex)
         defer { pthread_mutex_unlock(&mutex) }
@@ -278,6 +279,7 @@ open class Promise<S> {
         registerFailure { try? failure($0) }
     }
     
+    /// Registers a callback that is called in both promise resolutions
     @discardableResult
     public func onCompletion<V>(_ handler: @escaping (Result<S>) throws -> V) -> Promise<V> {
         let promise2: Promise<V> = chainedPromise()
