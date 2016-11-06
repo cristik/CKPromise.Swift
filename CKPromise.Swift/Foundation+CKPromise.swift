@@ -8,14 +8,52 @@
 
 import Foundation
 
-public func promisify<T>(_ call: () throws -> T) -> Promise<T> {
-    let promise = Promise<T>()
-    do {
-        promise.resolve(try call())
-    } catch let err {
-        promise.reject(err)
+public func promisify<T>(_ f: @escaping () throws -> T) -> () -> Promise<T> {
+    return {
+        let promise = Promise<T>()
+        do {
+            promise.resolve(try f())
+        } catch let err {
+            promise.reject(err)
+        }
+        return promise
     }
-    return promise
+}
+
+public func promisify<T,U>(_ f: @escaping (U) throws -> T) -> (U) -> Promise<T> {
+    return {
+        let promise = Promise<T>()
+        do {
+            promise.resolve(try f($0))
+        } catch let err {
+            promise.reject(err)
+        }
+        return promise
+    }
+}
+
+public func promisify<T,U,V>(_ f: @escaping (U,V) throws -> T) -> (U,V) -> Promise<T> {
+    return {
+        let promise = Promise<T>()
+        do {
+            promise.resolve(try f($0,$1))
+        } catch let err {
+            promise.reject(err)
+        }
+        return promise
+    }
+}
+
+public func promisify<T,U,V,W>(_ f: @escaping (U,V,W) throws -> T) -> (U,V,W) -> Promise<T> {
+    return {
+        let promise = Promise<T>()
+        do {
+            promise.resolve(try f($0,$1,$2))
+        } catch let err {
+            promise.reject(err)
+        }
+        return promise
+    }
 }
 
 /// A Promise subclass that carries the session and task identifier attached to
