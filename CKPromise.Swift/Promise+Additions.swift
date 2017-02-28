@@ -61,91 +61,6 @@ public extension Promise {
         return promise2
     }
     
-    /// This is the `then` method. It allows clients to observe the promise's
-    /// result - either success or failure.
-    /// The success/failure handlers are dispatched on the main thread, in an
-    /// async manner, thus after the current runloop cycle ends
-    /// Returns a promise that gets fulfilled with the result of the
-    /// success/failure callback
-    @discardableResult
-    public func on<V>(success: @escaping (S) throws -> V, failure: @escaping (Error) throws -> V) -> Promise<V> {
-        let promise2: Promise<V> = chainedPromise()
-        register(success: {
-            do {
-                try promise2.resolve(success($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        }, failure: {
-            do {
-                try promise2.resolve(failure($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        })
-        
-        return promise2
-    }
-    
-    @discardableResult
-    public func on<V>(success: @escaping (S) throws -> Promise<V>, failure: @escaping (Error) throws -> V) -> Promise<V> {
-        let promise2: Promise<V> = chainedPromise()
-        register(success: {
-            do {
-                try promise2.resolve(success($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        }, failure: {
-            do {
-                try promise2.resolve(failure($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        })
-        return promise2
-    }
-    
-    @discardableResult
-    public func on<V>(success: @escaping (S) throws -> V, failure: @escaping (Error) throws -> Promise<V>) -> Promise<V> {
-        let promise2: Promise<V> = chainedPromise()
-        register(success: {
-            do {
-                try promise2.resolve(success($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        }, failure: {
-            do {
-                try promise2.resolve(failure($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        })
-        return promise2
-    }
-    
-    /// Returns a promise that gets fulfilled with the result of the
-    /// success/failure callback.
-    @discardableResult
-    public func on<V>(success: @escaping (S) throws -> Promise<V>, failure: @escaping (Error) throws -> Promise<V>) -> Promise<V> {
-        let promise2: Promise<V> = chainedPromise()
-        register(success: {
-            do {
-                try promise2.resolve(success($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        }, failure: {
-            do {
-                try promise2.resolve(failure($0))
-            } catch let error {
-                promise2.reject(error)
-            }
-        })
-        return promise2
-    }
-    
     /// Returns a promise that gets fulfilled with the result of the
     /// success callback
     @discardableResult
@@ -206,5 +121,31 @@ public extension Promise {
             }
         })
         return promise2
+    }
+    
+    /// Registers a failure callback. This overload doesn't return another promise,
+    /// and is useful at the end of the chain
+    @discardableResult
+    public func onFailure(_ failure: @escaping (Error) throws -> Void) {
+        let promise2: Promise<S> = chainedPromise()
+        register(success: nil, failure: {
+            do {
+                try failure($0)
+            } catch let error {
+                promise2.reject(error)
+            }
+        })
+    }
+    
+    @discardableResult
+    public func onFailure(_ failure: @escaping () throws -> Void) {
+        let promise2: Promise<S> = chainedPromise()
+        register(success: nil, failure: { _ in
+            do {
+                try failure()
+            } catch let error {
+                promise2.reject(error)
+            }
+        })
     }
 }

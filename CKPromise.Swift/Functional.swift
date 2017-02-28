@@ -6,6 +6,11 @@
 //
 //
 
+precedencegroup PipePrecedence {
+    associativity: left
+    lowerThan: RangeFormationPrecedence
+}
+
 precedencegroup BindPrecedence {
     associativity: left
     higherThan: BitwiseShiftPrecedence
@@ -16,10 +21,15 @@ precedencegroup FunctionCompositionPrecedence {
     higherThan: BindPrecedence
 }
 
+infix operator |>: PipePrecedence
 infix operator »=: BindPrecedence
-infix operator ∘: FunctionCompositionPrecedence
+infix operator »: FunctionCompositionPrecedence
 
-public func ∘<T,U,V>(f: @escaping (T) -> U, g: @escaping (U) -> V) -> (T) -> V {
+public func |><T,U>(lhs: T, rhs: (T) -> U) -> U {
+    return rhs(lhs)
+}
+
+public func »<T,U,V>(f: @escaping (T) -> U, g: @escaping (U) -> V) -> (T) -> V {
     return { g(f($0)) }
 }
 

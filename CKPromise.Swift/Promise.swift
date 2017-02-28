@@ -39,7 +39,12 @@ open class Promise<S> {
         return Promise<V>()
     }
     
-    /// Registers a callback that is called in both promise resolutions
+    /// This is the `then` method. It allows clients to observe the promise's
+    /// result - either success or failure.
+    /// The success/failure handlers are dispatched on the main thread, in an
+    /// async manner, thus after the current runloop cycle ends
+    /// Returns a promise that gets fulfilled with the result of the
+    /// success/failure callback
     @discardableResult
     public func onCompletion<V>(_ handler: @escaping (Result<S>) throws -> V) -> Promise<V> {
         let promise2: Promise<V> = chainedPromise()

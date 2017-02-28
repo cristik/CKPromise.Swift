@@ -7,12 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0F3559F91DC7F26F002D7A6F /* CustomOperators.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3559F61DC7F26F002D7A6F /* CustomOperators.swift */; };
 		0F3559FA1DC7F26F002D7A6F /* Functional.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3559F71DC7F26F002D7A6F /* Functional.swift */; };
 		0F3559FB1DC7F26F002D7A6F /* Result.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3559F81DC7F26F002D7A6F /* Result.swift */; };
+		0F7C91AE1DD3050C003914FE /* Promise+Additions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7C91AD1DD3050C003914FE /* Promise+Additions.swift */; };
 		0F84B55C1D060A75009FA35C /* CKPromise_Swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F84B5511D060A75009FA35C /* CKPromise_Swift.framework */; };
 		0F84B5611D060A75009FA35C /* CKPromiseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F84B5601D060A75009FA35C /* CKPromiseTests.swift */; };
-		0F84B56C1D060A8E009FA35C /* CKPromise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F84B56B1D060A8E009FA35C /* CKPromise.swift */; };
+		0F84B56C1D060A8E009FA35C /* Promise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F84B56B1D060A8E009FA35C /* Promise.swift */; };
 		B65B0E781D3FB60F00DAF863 /* Foundation+CKPromise.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65B0E771D3FB60E00DAF863 /* Foundation+CKPromise.swift */; };
 /* End PBXBuildFile section */
 
@@ -27,17 +27,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0F3559F61DC7F26F002D7A6F /* CustomOperators.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomOperators.swift; sourceTree = "<group>"; };
 		0F3559F71DC7F26F002D7A6F /* Functional.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Functional.swift; sourceTree = "<group>"; };
 		0F3559F81DC7F26F002D7A6F /* Result.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Result.swift; sourceTree = "<group>"; };
 		0F6428561D3ED8430039F652 /* CKPromise.Swift.podspec */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = CKPromise.Swift.podspec; sourceTree = "<group>"; };
 		0F64285A1D3EE19F0039F652 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		0F7C91AD1DD3050C003914FE /* Promise+Additions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Promise+Additions.swift"; sourceTree = "<group>"; };
 		0F84B5511D060A75009FA35C /* CKPromise_Swift.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CKPromise_Swift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F84B5561D060A75009FA35C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		0F84B55B1D060A75009FA35C /* CKPromise.Swift-Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CKPromise.Swift-Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F84B5601D060A75009FA35C /* CKPromiseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKPromiseTests.swift; sourceTree = "<group>"; };
 		0F84B5621D060A75009FA35C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		0F84B56B1D060A8E009FA35C /* CKPromise.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CKPromise.swift; sourceTree = "<group>"; };
+		0F84B56B1D060A8E009FA35C /* Promise.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Promise.swift; sourceTree = "<group>"; };
 		B65B0E771D3FB60E00DAF863 /* Foundation+CKPromise.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Foundation+CKPromise.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -83,9 +83,9 @@
 		0F84B5531D060A75009FA35C /* CKPromise.Swift */ = {
 			isa = PBXGroup;
 			children = (
-				0F84B56B1D060A8E009FA35C /* CKPromise.swift */,
+				0F84B56B1D060A8E009FA35C /* Promise.swift */,
+				0F7C91AD1DD3050C003914FE /* Promise+Additions.swift */,
 				B65B0E771D3FB60E00DAF863 /* Foundation+CKPromise.swift */,
-				0F3559F61DC7F26F002D7A6F /* CustomOperators.swift */,
 				0F3559F71DC7F26F002D7A6F /* Functional.swift */,
 				0F3559F81DC7F26F002D7A6F /* Result.swift */,
 				0F84B5561D060A75009FA35C /* Info.plist */,
@@ -158,7 +158,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 0730;
-				LastUpgradeCheck = 0800;
+				LastUpgradeCheck = 0810;
 				ORGANIZATIONNAME = Cristik;
 				TargetAttributes = {
 					0F84B5501D060A75009FA35C = {
@@ -214,9 +214,9 @@
 			files = (
 				B65B0E781D3FB60F00DAF863 /* Foundation+CKPromise.swift in Sources */,
 				0F3559FB1DC7F26F002D7A6F /* Result.swift in Sources */,
-				0F84B56C1D060A8E009FA35C /* CKPromise.swift in Sources */,
+				0F84B56C1D060A8E009FA35C /* Promise.swift in Sources */,
 				0F3559FA1DC7F26F002D7A6F /* Functional.swift in Sources */,
-				0F3559F91DC7F26F002D7A6F /* CustomOperators.swift in Sources */,
+				0F7C91AE1DD3050C003914FE /* Promise+Additions.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,8 +253,10 @@
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
@@ -302,8 +304,10 @@
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
@@ -334,6 +338,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
@@ -353,6 +358,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;

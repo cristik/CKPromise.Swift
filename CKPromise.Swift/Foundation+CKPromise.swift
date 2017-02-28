@@ -58,8 +58,8 @@ public func promisify<T,U,V,W>(_ f: @escaping (U,V,W) throws -> T) -> (U,V,W) ->
 
 /// A Promise subclass that carries the session and task identifier attached to
 open class URLSessionPromise<S>: Promise<S> {
-    let session: URLSession
-    let taskIdentifier: Int
+    public let session: URLSession
+    public let taskIdentifier: Int
     
     public init(session: URLSession, taskIdentifier: Int) {
         self.session = session
@@ -146,7 +146,7 @@ public extension NSError {
     
     class func castError(from: String, to: String) -> NSError {
         return NSError(domain: "CastErrorDomain", code: -1, userInfo:[
-            NSLocalizedDescriptionKey: "Cast faile: expected a \(to), received a \(from)"])
+            NSLocalizedDescriptionKey: "Cast failed: expected a \(to), received a \(from)"])
     }
 }
 

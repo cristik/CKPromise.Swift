@@ -98,6 +98,24 @@ class CKPromiseTests: XCTestCase {
     // it must not be called before promise is fulfilled.
     // it must not be called more than once.
     // onFulfilled or onRejected must not be called until the execution context stack contains only platform code.
+    func testCompletionSuccess() {
+        var cnt = 0
+        var value = Result(value: 0)
+        let ex = expectation(description: "")
+        let _ = promise.onCompletion {
+            cnt += 1
+            value =  $0
+            ex.fulfill()
+        }
+        XCTAssertEqual(0, cnt)
+        promise.resolve(7)
+        XCTAssertEqual(0, cnt)
+        let _ = promise.onSuccess { _ in }
+        waitForExpectations(timeout: 0.1, handler: nil)
+        XCTAssertEqual(1, cnt)
+        XCTAssertEqual(Result(value: 7), value)
+    }
+    
     func testSuccess() {
         var cnt = 0
         var value = 0
@@ -121,25 +139,40 @@ class CKPromiseTests: XCTestCase {
     // it must not be called before promise is rejected.
     // it must not be called more than once.
     // onFulfilled or onRejected must not be called until the execution context stack contains only platform code.
-    func testReject() {
-//        var cnt = 0
-//        var reason = "a"
-//        let ex = expectationWithDescription("")
-        promise.onFailure { _ -> Void in
-            print("aaa")
-            return ()
+    func testCompletionReject() {
+        var cnt = 0
+        var result = Result(value: 0)
+        let ex = expectation(description: "")
+        promise.onCompletion {
+            cnt += 1
+            result = $0
+            ex.fulfill()
         }
-//            cnt += 1
-//            reason =  $0
-//            ex.fulfill()
-//          }
-//        XCTAssertEqual(0, cnt)
-//        promise.reject("b")
-//        XCTAssertEqual(0, cnt)
-//        let _ = promise.onSuccess({_ in })
-//        waitForExpectationsWithTimeout(0.1, handler: nil)
-//        XCTAssertEqual(1, cnt)
-//        XCTAssertEqual("b", reason)
+        XCTAssertEqual(0, cnt)
+        promise.reject("b")
+        XCTAssertEqual(0, cnt)
+        let _ = promise.onSuccess({_ in })
+        waitForExpectations(timeout: 0.1, handler: nil)
+        XCTAssertEqual(1, cnt)
+        XCTAssertEqual("b", result.error as? String)
+    }
+    
+    func testReject() {
+        var cnt = 0
+        var reason: String? = "a"
+        let ex = expectation(description: "")
+        promise.onFailure { (rsn) -> Void in
+            cnt += 1
+            reason = rsn as? String
+            ex.fulfill()
+        }
+        XCTAssertEqual(0, cnt)
+        promise.reject("b")
+        XCTAssertEqual(0, cnt)
+        let _ = promise.onSuccess({_ in })
+        waitForExpectations(timeout: 0.1, handler: nil)
+        XCTAssertEqual(1, cnt)
+        XCTAssertEqual("b", reason)
     }
     
     // then may be called multiple times on the same promise.
@@ -172,15 +205,15 @@ class CKPromiseTests: XCTestCase {
         let ex1 = expectation(description: "")
         let ex2 = expectation(description: "")
         let ex3 = expectation(description: "")
-        promise.onFailure { _ -> Void in
+        promise.onFailure { (rsn: Error) -> Void in
             order.append(1)
             ex1.fulfill()
         }
-        let _ = promise.onFailure { _ -> Void in
+        let _ = promise.onFailure { (rsn: Error) -> Void in
             order.append(2)
             ex2.fulfill()
         }
-        let _ = promise.onFailure { _ -> Void in
+        let _ = promise.onFailure { (rsn: Error) -> Void in
             order.append(3)
             ex3.fulfill()
         }
@@ -204,11 +237,13 @@ class CKPromiseTests: XCTestCase {
     
     func testRejectResolvesPromise2WithTheReturnedValue() {
         let ex = expectation(description: "")
-        let promise2 = promise.on(success: { (_) -> Double in XCTFail(); return 0.1 },
-                                  failure: { (_) -> Double in ex.fulfill(); return 1.8 })
+        let promise2 = promise.onFailure { (_) -> Int in
+            ex.fulfill()
+            return 18
+        }
         promise.reject("jk")
         waitForExpectations(timeout: 0.1, handler: nil)
-        XCTAssertEqual(Result<Double>.success(1.8), promise2.result)
+        XCTAssertEqual(Result(value: 18), promise2.result)
     }
     
     // 2.2.7.2 If either onFulfilled or onRejected throws an exception e, promise2 must be rejected with e as the reason.
@@ -241,6 +276,20 @@ class CKPromiseTests: XCTestCase {
         XCTAssertEqual(14, value)
     }
     
+    func testCompletionResolveWithAPendingPromiseResolvesThisOneWhenTheOtherOneIsResolved() {
+        let otherPromise = Promise<Int>()
+        let ex = expectation(description: "")
+        var result = Result(value: 0)
+        promise.onCompletion {
+            result = $0
+            ex.fulfill()
+        }
+        promise.resolve(otherPromise)
+        otherPromise.resolve(41)
+        waitForExpectations(timeout: 0.1, handler: nil)
+        XCTAssertEqual(41, result.value)
+    }
+    
     func testResolveWithAPendingPromiseResolvesThisOneWhenTheOtherOneIsResolved() {
         let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
@@ -255,11 +304,26 @@ class CKPromiseTests: XCTestCase {
         XCTAssertEqual(41, value)
     }
     
+    func testCompletionResolveWithARejectedPromiseRejectsThisOne() {
+        let otherPromise = Promise<Int>()
+        let ex = expectation(description: "")
+        var result = Result(value: 0)
+        promise.onCompletion {
+            result = $0
+            ex.fulfill()
+        }
+        otherPromise.reject("op")
+        promise.resolve(otherPromise)
+        waitForExpectations(timeout: 0.1, handler: nil)
+        XCTAssertEqual(promise.result, Result<Int>.failure("op"))
+        XCTAssertEqual("op", result.error as? String)
+    }
+    
     func testResolveWithARejectedPromiseRejectsThisOne() {
         let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var reason: String?
-        promise.onFailure { rsn -> Void in
+        promise.onFailure { (rsn) -> Void in
             reason = rsn as? String
             ex.fulfill()
         }
@@ -270,11 +334,25 @@ class CKPromiseTests: XCTestCase {
         XCTAssertEqual("op", reason)
     }
     
+    func testCompletionResolveWithAPendingPromiseRejectsThisOneWhenTheOtherOneGetsRejected() {
+        let otherPromise = Promise<Int>()
+        let ex = expectation(description: "")
+        var result = Result(value: 0)
+        promise.onCompletion {
+            result = $0
+            ex.fulfill()
+        }
+        promise.resolve(otherPromise)
+        otherPromise.reject("pq")
+        waitForExpectations(timeout: 0.1, handler: nil)
+        XCTAssertEqual("pq", result.error as? String)
+    }
+    
     func testResolveWithAPendingPromiseRejectsThisOneWhenTheOtherOneGetsRejected() {
         let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var reason: String?
-        promise.onFailure { rsn -> Void in
+        promise.onFailure { (rsn) -> Void in
             reason = rsn as? String
             ex.fulfill()
         }
@@ -287,12 +365,11 @@ class CKPromiseTests: XCTestCase {
     func testRecoveredFailedPromise() {
         let ex = expectation(description: "")
         var chainValue = [Int]()
-        promise.on(success: { _ in return [1,2,3] }, failure: { _ in
-            return [4,5,6]
-        }).onSuccess {
-            chainValue = $0
-            ex.fulfill()
-        }
+        promise.onSuccess { _ in [1,2,3] }.onFailure { _ in [4,5,6] }
+            .onSuccess {
+                chainValue = $0
+                ex.fulfill()
+            }
         promise.reject("aReason")
         waitForExpectations(timeout: 0.1, handler: nil)
         XCTAssertEqual([4,5,6], chainValue)
