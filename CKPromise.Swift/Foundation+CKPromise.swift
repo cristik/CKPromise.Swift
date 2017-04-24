@@ -13,8 +13,8 @@ public func promisify<T>(_ f: @escaping () throws -> T) -> () -> Promise<T> {
         let promise = Promise<T>()
         do {
             promise.resolve(try f())
-        } catch let err {
-            promise.reject(err)
+        } catch {
+            promise.reject(error)
         }
         return promise
     }
@@ -94,8 +94,8 @@ public extension URLSession {
                 // the processed value
                 do {
                     promise.resolve(try processor(urlResponse, data))
-                } catch let err {
-                    promise.reject(err)
+                } catch {
+                    promise.reject(error)
                 }
             } else {
                 // we have neither error, nor data, report a generic error
@@ -104,8 +104,8 @@ public extension URLSession {
                 promise.reject(NSError.genericError())
             }
         }
-        task.resume()
         promise = URLSessionPromise<V>(session: self, taskIdentifier: task.taskIdentifier)
+        task.resume()
         return promise
     }
 }
@@ -134,14 +134,6 @@ public extension Data {
 public extension NSError {
     class func genericError() -> NSError {
         return NSError(domain: "GenericErrorDomain", code: -1, userInfo: nil)
-    }
-    
-    class func invalidJSONError() -> NSError {
-        return NSError(domain: "InvalidJSONErrorDomain", code: -1, userInfo: nil)
-    }
-    
-    class func invalidURLRequestError() -> NSError {
-        return NSError(domain: "InvalidURLRequestErrorDomain", code: -1, userInfo: nil)
     }
     
     class func castError(from: String, to: String) -> NSError {
@@ -182,12 +174,6 @@ public extension Dictionary {
     
     func extract<T: DictionaryInitializable>(_ key: Key) throws -> [T] {
         return try (extract(key) as [[String:Any]]).map { try T.init(dictionary: $0) }
-    }
-    
-    func extract<T>(_ key: Key, defaultValue: T) throws -> T {
-        guard let value = self[key], !(value is NSNull) else { return defaultValue }
-        guard let result = value as? T else { throw DictionaryExtractError.typeMismatch("\(key)", "\(type(of: value))", "\(T.self)") }
-        return result
     }
     
     func extracto<T>(_ key: Key) throws -> T? {

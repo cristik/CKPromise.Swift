@@ -161,7 +161,7 @@ class CKPromiseTests: XCTestCase {
         var cnt = 0
         var reason: String? = "a"
         let ex = expectation(description: "")
-        promise.onFailure { (rsn) -> Void in
+        promise.onFailure { (rsn: Error) -> Void in
             cnt += 1
             reason = rsn as? String
             ex.fulfill()
@@ -323,7 +323,7 @@ class CKPromiseTests: XCTestCase {
         let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var reason: String?
-        promise.onFailure { (rsn) -> Void in
+        promise.onFailure { (rsn: Error) -> Void in
             reason = rsn as? String
             ex.fulfill()
         }
@@ -352,7 +352,7 @@ class CKPromiseTests: XCTestCase {
         let otherPromise = Promise<Int>()
         let ex = expectation(description: "")
         var reason: String?
-        promise.onFailure { (rsn) -> Void in
+        promise.onFailure { (rsn: Error) -> Void in
             reason = rsn as? String
             ex.fulfill()
         }
